@@ -17,46 +17,58 @@ public:
     typedef const T &const_reference;
 
 public:
-    explicit stack_allocator()
+    explicit stack_allocator() noexcept
         : m_begin(nullptr), m_end(nullptr), m_stack_pointer(nullptr) {}
 
-    explicit stack_allocator(void *buffer, std::size_t buffer_size)
+    stack_allocator(void *buffer, std::size_t buffer_size) noexcept
         : m_begin((T *)buffer),
           m_end((T *)buffer + buffer_size / sizeof(T)),
           m_stack_pointer((T *)buffer) {}
 
     template <class U>
-    stack_allocator(const stack_allocator<U> &other)
-        : m_begin(reinterpret_cast<pointer>(other.m_begin)),
-          m_end(reinterpret_cast<pointer>(other.m_end)),
-          m_stack_pointer(reinterpret_cast<pointer>(other.m_stack_pointer)) {}
+    stack_allocator(const stack_allocator<U> &other) noexcept
+        : m_begin(reinterpret_cast<T *>(other.m_begin)),
+          m_end(reinterpret_cast<T *>(other.m_end)),
+          m_stack_pointer(reinterpret_cast<T *>(other.m_stack_pointer)) {}
 
-    constexpr size_type capacity() { return m_end - m_begin; }
+    constexpr size_type capacity() noexcept { return m_end - m_begin; }
 
-    pointer allocate(size_type n, const_pointer hint = const_pointer())
+    inline pointer allocate(size_type n, const_pointer hint = const_pointer()) noexcept
     {
-        return std::exchange(m_stack_pointer, m_stack_pointer + n);
+        pointer other = m_stack_pointer;
+        m_stack_pointer += n;
+        return other;
     }
 
-    void deallocate(pointer p, size_type n) {}
+    inline void deallocate(pointer p, size_type n) const noexcept {}
 
-    size_type max_size() const noexcept { return m_end - m_stack_pointer; }
+    inline size_type max_size() const noexcept { return m_end - m_stack_pointer; }
 
     template <class U, class... Args>
-    void construct(U *p, Args &&...args)
+    inline void construct(U *p, Args &&...args)
     {
-        new ((void *)p) U(std::forward<Args>(args)...);
+        if constexpr (!std::is_fundamental<U>::value)
+        {
+            new ((void *)p) U(std::forward<Args>(args)...);
+        }
+        else
+        {
+            *p = U(std::forward<Args>(args)...);
+        }
     }
 
     template <class U>
-    void destroy(U *p)
+    inline void destroy(U *p)
     {
-        p->~U();
+        if constexpr (!std::is_fundamental<U>::value)
+        {
+            p->~U();
+        }
     }
 
-    pointer address(reference x) const noexcept { return std::addressof(x); }
+    inline pointer address(reference x) const noexcept { return std::addressof(x); }
 
-    const_pointer address(const_reference x) const noexcept
+    inline const_pointer address(const_reference x) const noexcept
     {
         return std::addressof(x);
     }
@@ -67,15 +79,9 @@ public:
         typedef stack_allocator<U> other;
     };
 
-    pointer buffer() const noexcept { return m_begin; }
+    inline pointer buffer() const noexcept { return m_begin; }
 
 public:
-    bool pointer_to_internal_buffer(const_pointer p) const
-    {
-        return (!(std::less<const_pointer>()(p, m_begin)) &&
-                (std::less<const_pointer>()(p, m_end)));
-    }
-
     pointer m_begin;
     pointer m_end;
     pointer m_stack_pointer;
