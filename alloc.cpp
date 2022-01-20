@@ -126,6 +126,25 @@ public:
     }
 };
 
+class default_std_alloc_vec_reserved
+{
+public:
+    int INLINE operator()(int total_nodes)
+    {
+        std::vector<int> vec;
+        vec.reserve(total_nodes);
+        for (int i = 0; i != total_nodes; ++i)
+        {
+            vec.push_back(rand_val() & 15);
+        }
+
+        int sum = 0;
+        for (int i = 0; i < 10; ++i)
+            sum += vec[rand_val() % vec.size()];
+        return sum;
+    };
+};
+
 class default_std_alloc_vec
 {
 public:
@@ -184,7 +203,7 @@ class pmr_alloc_and_buf_vec
 public:
     int INLINE operator()(int total_nodes)
     {
-        std::size_t size = total_nodes * sizeof(int) * 2; //consider vector growth factor
+        std::size_t size = total_nodes * sizeof(int) * 2; // consider vector growth factor
         std::byte *buffer = (std::byte *)alloca(size);
         std::pmr::monotonic_buffer_resource mbr{buffer, size};
         std::pmr::polymorphic_allocator<int> pa{&mbr};
@@ -205,7 +224,7 @@ class custom_stack_alloc_vec
 public:
     int INLINE operator()(int total_nodes)
     {
-        std::size_t size = total_nodes * sizeof(int) * 2; //consider vector growth factor
+        std::size_t size = total_nodes * sizeof(int) * 2; // consider vector growth factor
         std::byte *buffer = (std::byte *)alloca(size);
         std::vector<int, stack_allocator<int>> vec(
             stack_allocator<int>(buffer, size));
@@ -240,6 +259,8 @@ void list_test()
     int iterations{1000};
     int total_nodes{250'000};
 
+    const double warm = benchmark<default_std_alloc>(iterations, total_nodes) +
+                        benchmark<custom_stack_allocator>(iterations, total_nodes);
     const double t1 = benchmark<default_std_alloc>(iterations, total_nodes);
     const double t2 = benchmark<default_pmr_alloc>(iterations, total_nodes);
     const double t3 = benchmark<pmr_alloc_no_buf>(iterations, total_nodes);
@@ -248,19 +269,23 @@ void list_test()
 
     fmt::print(
         "Results of {} iterations for std::list<int> of size {}\n "
+        "w  (warming step     )    : {:.3f} sec\n "
         "t1 (default std alloc)    : {:.3f} sec; t1/t1: {:.3f} \n "
         "t2 (default pmr alloc)    : {:.3f} sec; t1/t2: {:.3f} \n "
         "t3 (pmr alloc no buffer)  : {:.3f} sec; t1/t3: {:.3f} \n "
         "t4 (pmr alloc with buffer): {:.3f} sec; t1/t4: {:.3f} \n "
         "t5 (custom stack alloc)   : {:.3f} sec; t1/t5: {:.3f} \n\n",
-        iterations, total_nodes, t1, t1 / t1, t2, t1 / t2, t3, t1 / t3, t4,
+        iterations, total_nodes, warm, t1, t1 / t1, t2, t1 / t2, t3, t1 / t3, t4,
         t1 / t4, t5, t1 / t5);
 }
 
 void INLINE vector_test(int total_nodes)
 {
-    int iterations = (1 << 28) / total_nodes;
+    int iterations = (1 << 30) / total_nodes;
 
+    const double warm = benchmark<default_std_alloc_vec>(iterations, total_nodes) +
+                        benchmark<custom_stack_alloc_vec>(iterations, total_nodes);
+    const double t0 = benchmark<default_std_alloc_vec_reserved>(iterations, total_nodes);
     const double t1 = benchmark<default_std_alloc_vec>(iterations, total_nodes);
     const double t2 = benchmark<default_pmr_alloc_vec>(iterations, total_nodes);
     const double t3 = benchmark<pmr_alloc_no_buf_vec>(iterations, total_nodes);
@@ -269,12 +294,14 @@ void INLINE vector_test(int total_nodes)
 
     fmt::print(
         "Results of {} iterations for std::vector<int> of size {}\n "
+        "w  (warming step     )    : {:.3f} sec\n "
+        "t0 (default std alloc res): {:.3f} sec; t1/t0: {:.3f} \n "
         "t1 (default std alloc)    : {:.3f} sec; t1/t1: {:.3f} \n "
         "t2 (default pmr alloc)    : {:.3f} sec; t1/t2: {:.3f} \n "
         "t3 (pmr alloc no buffer)  : {:.3f} sec; t1/t3: {:.3f} \n "
         "t4 (pmr alloc with buffer): {:.3f} sec; t1/t4: {:.3f} \n "
         "t5 (custom stack alloc)   : {:.3f} sec; t1/t5: {:.3f} \n\n",
-        iterations, total_nodes, t1, t1 / t1, t2, t1 / t2, t3, t1 / t3, t4,
+        iterations, total_nodes, warm, t0, t1 / t0, t1, t1 / t1, t2, t1 / t2, t3, t1 / t3, t4,
         t1 / t4, t5, t1 / t5);
 }
 
@@ -286,7 +313,7 @@ int main()
     rand_vals = local_arr;
 
     list_test();
-    for (int i = 4; i < (1 << 18); i <<= 2)
+    for (int i = 4; i < (1 << 22); i <<= 2)
         vector_test(i);
 
     return 0;
