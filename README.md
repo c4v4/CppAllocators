@@ -127,8 +127,12 @@ These test are fast and dirty, only to see if there's any potential benefit in w
         a guess, in average equal to half to the final size)    
 
 ### Quick comment:
-The simple stack allocator (which when finishes its buffer causes a segfault in the best case scenario), is quite efficient compared to all other general or local allocators.
+The simple stack allocator (which, in the best case scenario, when finishes its buffer causes a segfault), is quite efficient when compared to all other general or local allocators.
 This would be very interesting if the simple "reserve" wouldn't be almost always better (aside for very small vector sizes). 
 Notice also that if we use this version of stack_allocator, we must know the max size beforehand, so we can call reserve with vector using the same size.
-For the list case (which as far as I know have no reserve method (as one would expect)), it can be a useful way to implement a "reserve" functionality, but only with the general stack_allocator that call a general allocator when the buffer finishes.
-Finally, comparing t5 and t6, allocating a stack buffer in the parent function seems to be effective with very small sizes. In rapidly loose any relevance (as the stack-allocator in general compared to the simple "reserve" call of std::vector).
+For the list case (which, as far as I know, has no reserve method (as one would expect)), it can be a useful way to implement a "reserve" functionality, but only with the general stack_allocator that call a general allocator when the buffer finishes.
+
+Comparing t5 and t6, allocating a stack buffer in the parent function seems to be effective with very small sizes. It rapidly loosees any relevance (as the stack-allocator compared to the simple "reserve" call of std::vector).
+
+Finally, when the final size is not known, making a guess with "reserve" still seems more efficient than allocating into the stack a small buffer for smaller sizes.
+
